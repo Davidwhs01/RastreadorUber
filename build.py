@@ -131,9 +131,10 @@ def main():
     ]
 
     # ─── Collect customtkinter data ───────────────────────────────────────
-    # customtkinter precisa que seus assets sejam incluídos
+    # customtkinter e selenium precisam que seus assets sejam incluídos
     collect = [
         "--collect-all=customtkinter",
+        "--collect-all=selenium",
     ]
 
     # ─── PyInstaller command ──────────────────────────────────────────────

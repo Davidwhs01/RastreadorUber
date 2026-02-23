@@ -37,7 +37,7 @@ BASE_DIR = get_base_dir()
 VERSION_FILE = BASE_DIR / "version.json"
 LOG_FILE = BASE_DIR / "uber_tracker.log"
 
-APP_VERSION = "3.1.1"
+APP_VERSION = "3.1.2"
 APP_TITLE = "UberTrack by Delta"
 
 # ─── Windows: definir AppUserModelId para notificações corretas ───────────────
@@ -362,13 +362,32 @@ def apply_update(download_url: str) -> bool:
         for item in source.iterdir():
             dest = BASE_DIR / item.name
             if item.is_dir():
-                if dest.exists(): shutil.rmtree(dest)
-                shutil.copytree(item, dest)
+                if dest.exists():
+                    try:
+                        shutil.rmtree(dest)
+                    except PermissionError:
+                        dest.rename(dest.with_name(dest.name + ".old"))
+                shutil.copytree(item, dest, dirs_exist_ok=True)
             else:
+                if dest.exists():
+                    try:
+                        dest.unlink()
+                    except PermissionError:
+                        try:
+                            # Tenta renomear o arquivo problemático (comum para .exe rodando)
+                            dest.rename(dest.with_name(dest.name + ".old"))
+                        except Exception:
+                            pass
                 shutil.copy2(item, dest)
         shutil.rmtree(tmp, ignore_errors=True)
         return True
-    except Exception:
+    except Exception as e:
+        import traceback
+        try:
+            with open(BASE_DIR / "uber_tracker.log", "a", encoding="utf-8") as _f:
+                _f.write(f"\\n--- ERRO AUTO UPDATE ---\\n{traceback.format_exc()}\\n")
+        except:
+            pass
         return False
 
 

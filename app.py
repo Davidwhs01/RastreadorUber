@@ -64,7 +64,13 @@ try:
     from selenium.webdriver.chrome.options import Options
     from selenium.webdriver.common.by import By
     TEM_SELENIUM = True
-except ImportError:
+except Exception as e:
+    import traceback
+    try:
+        with open(BASE_DIR / "uber_tracker.log", "a", encoding="utf-8") as _f:
+            _f.write(f"\\n--- ERRO SELENIUM ---\\n{traceback.format_exc()}\\n")
+    except:
+        pass
     TEM_SELENIUM = False
 
 # (plyer removido — usa PowerShell nativo para notificações com nome correto)

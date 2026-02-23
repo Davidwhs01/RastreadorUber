@@ -37,7 +37,7 @@ BASE_DIR = get_base_dir()
 VERSION_FILE = BASE_DIR / "version.json"
 LOG_FILE = BASE_DIR / "uber_tracker.log"
 
-APP_VERSION = "3.1.0"
+APP_VERSION = "3.1.1"
 APP_TITLE = "UberTrack by Delta"
 
 # ─── Windows: definir AppUserModelId para notificações corretas ───────────────

@@ -1,6 +1,6 @@
 """
 ╔══════════════════════════════════════════════════════════════╗
-║           RASTREADOR UBER 3.0 — App Desktop                  ║
+║           UBERTRACK BY DELTA — App Desktop                    ║
 ║           Criado por Delta Silk Print                         ║
 ╚══════════════════════════════════════════════════════════════╝
 
@@ -38,7 +38,7 @@ VERSION_FILE = BASE_DIR / "version.json"
 LOG_FILE = BASE_DIR / "uber_tracker.log"
 
 APP_VERSION = "3.1.0"
-APP_TITLE = "Rastreador Uber by Delta"
+APP_TITLE = "UberTrack by Delta"
 
 # ─── Windows: definir AppUserModelId para notificações corretas ───────────────
 try:
@@ -242,7 +242,7 @@ def notificar(titulo: str, mensagem: str):
             hdr.pack(fill="x", padx=12, pady=(10, 0))
 
             ctk.CTkLabel(
-                hdr, text="🚗  Rastreador Uber by Delta",
+                hdr, text="🚗  UberTrack by Delta",
                 font=ctk.CTkFont(size=9, weight="bold"),
                 text_color="#5a5a66"
             ).pack(side="left")
@@ -407,7 +407,7 @@ class RastreadorApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Rastreador Uber 3.0 — Delta Silk Print")
+        self.title("UberTrack — Delta Silk Print")
         self.geometry("500x780")
         self.minsize(440, 650)
         self.configure(fg_color=C["bg"])
@@ -456,7 +456,7 @@ class RastreadorApp(ctk.CTk):
 
         # Título principal
         ctk.CTkLabel(
-            hdr, text="🚗  Rastreador Uber",
+            hdr, text="🚗  UberTrack",
             font=ctk.CTkFont(family="Segoe UI", size=22, weight="bold"),
             text_color=C["text"]
         ).pack(pady=(0, 4))
@@ -878,7 +878,7 @@ class RastreadorApp(ctk.CTk):
         try:
             driver.get(link)
             time.sleep(15)
-            notificar("Rastreador Uber", "Monitoramento ativo ✔")
+            notificar("UberTrack", "Monitoramento ativo ✔")
 
             while not self.stop_event.is_set():
                 try:

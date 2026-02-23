@@ -1,5 +1,5 @@
 @echo off
-title Rastreador Uber 3.0 - Delta Silk Print
+title UberTrack by Delta
 cd /d "%~dp0"
 python app.py
 if %ERRORLEVEL% neq 0 (

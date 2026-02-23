@@ -1,6 +1,6 @@
 """
 ╔══════════════════════════════════════════════════════════════╗
-║     CRIAR ATALHO — Rastreador Uber 3.0                      ║
+║     CRIAR ATALHO — UberTrack by Delta                         ║
 ║     Delta Silk Print                                         ║
 ╚══════════════════════════════════════════════════════════════╝
 
@@ -59,7 +59,7 @@ def create_shortcut():
 
     target = find_target()
     desktop = get_desktop()
-    shortcut_path = desktop / "Rastreador Uber 3.0.lnk"
+    shortcut_path = desktop / "UberTrack.lnk"
 
     print(f"📁 Alvo:      {target}")
     print(f"🖥️  Desktop:   {desktop}")
@@ -69,7 +69,7 @@ $ws = New-Object -ComObject WScript.Shell
 $s = $ws.CreateShortcut("{shortcut_path}")
 $s.TargetPath = "{target}"
 $s.WorkingDirectory = "{target.parent}"
-$s.Description = "Rastreador Uber 3.0 - Delta Silk Print"
+$s.Description = "UberTrack by Delta"
 $s.WindowStyle = 1
 $s.Save()
 Write-Host "OK"
@@ -80,7 +80,7 @@ Write-Host "OK"
     )
 
     if "OK" in result.stdout:
-        print(f"✅ Atalho criado: 'Rastreador Uber 3.0' na Área de Trabalho")
+        print(f"\u2705 Atalho criado: 'UberTrack' na \u00c1rea de Trabalho")
     else:
         print(f"❌ Falha: {result.stderr.strip()}")
         sys.exit(1)

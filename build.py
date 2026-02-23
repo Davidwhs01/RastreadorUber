@@ -1,6 +1,6 @@
 """
 ╔══════════════════════════════════════════════════════════════╗
-║            BUILD — Rastreador Uber 3.0 (Único .exe)         ║
+║            BUILD — UberTrack by Delta (Único .exe)            ║
 ║            Criado por Delta Silk Print                       ║
 ╚══════════════════════════════════════════════════════════════╝
 
@@ -22,13 +22,13 @@ APP_FILE = BASE_DIR / "app.py"
 VERSION_FILE = BASE_DIR / "version.json"
 DIST_DIR = BASE_DIR / "dist"
 
-APP_NAME = "RastreadorUber3"
+APP_NAME = "UberTrack"
 
 
 def print_header():
     print("""
 ╔══════════════════════════════════════════════════════════╗
-║     🚗  BUILD — Rastreador Uber 3.0                     ║
+║     🚗  BUILD — UberTrack by Delta                    ║
 ║     Gera um único .exe com interface gráfica             ║
 ║     Delta Silk Print                                     ║
 ╚══════════════════════════════════════════════════════════╝
@@ -71,14 +71,14 @@ def create_desktop_shortcut(exe_path: Path):
     except Exception:
         desktop = Path(os.environ.get("USERPROFILE", "~")) / "Desktop"
 
-    shortcut_path = desktop / "Rastreador Uber 3.0.lnk"
+    shortcut_path = desktop / "UberTrack.lnk"
 
     ps_script = f'''
 $ws = New-Object -ComObject WScript.Shell
 $s = $ws.CreateShortcut("{shortcut_path}")
 $s.TargetPath = "{exe_path}"
 $s.WorkingDirectory = "{exe_path.parent}"
-$s.Description = "Rastreador Uber 3.0 - Delta Silk Print"
+$s.Description = "UberTrack by Delta"
 $s.WindowStyle = 1
 $s.Save()
 Write-Host "OK"
@@ -166,7 +166,7 @@ def main():
     print(f"{'─' * 50}")
 
     if create_desktop_shortcut(exe_path):
-        print("  ✔ Atalho 'Rastreador Uber 3.0' criado!")
+        print("  ✔ Atalho 'UberTrack' criado!")
     else:
         print("  ⚠ Não foi possível criar atalho automaticamente")
 
@@ -178,7 +178,7 @@ def main():
 ║  App:     {APP_NAME}.exe
 ║  Versão:  {version}
 ║  Pasta:   {dist_app}
-║  Atalho:  Área de Trabalho → Rastreador Uber 3.0
+║  Atalho:  Área de Trabalho → UberTrack
 ║  Terminal: NÃO (windowed mode)
 ╚══════════════════════════════════════════════════════════╝
 

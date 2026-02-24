@@ -429,7 +429,12 @@ def apply_update(download_url: str) -> bool:
                     try:
                         shutil.rmtree(dest)
                     except PermissionError:
-                        dest.rename(dest.with_name(dest.name + ".old"))
+                        try:
+                            import uuid
+                            old_name = dest.with_name(f"{dest.name}.{uuid.uuid4().hex[:8]}.old")
+                            dest.rename(old_name)
+                        except Exception:
+                            pass
                 shutil.copytree(item, dest, dirs_exist_ok=True)
             else:
                 if dest.exists():
@@ -437,8 +442,9 @@ def apply_update(download_url: str) -> bool:
                         dest.unlink()
                     except PermissionError:
                         try:
-                            # Tenta renomear o arquivo problemático (comum para .exe rodando)
-                            dest.rename(dest.with_name(dest.name + ".old"))
+                            import uuid
+                            old_name = dest.with_name(f"{dest.name}.{uuid.uuid4().hex[:8]}.old")
+                            dest.rename(old_name)
                         except Exception:
                             pass
                 shutil.copy2(item, dest)

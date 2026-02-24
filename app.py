@@ -17,11 +17,14 @@ import os
 import re
 import sys
 import json
-import winsound
+import pyttsx3
 import tempfile
 import zipfile
 import shutil
 import ctypes
+import io
+import queue
+from PIL import Image, ImageTk, ImageDraw
 from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Optional
@@ -87,11 +90,18 @@ class DadosViagem:
     cor: Optional[str] = None
     chegada: Optional[str] = None
     minutos: Optional[int] = None
+    origem: Optional[str] = None
+    destino: Optional[str] = None
+    tipo_veiculo: Optional[str] = None
+    modalidade: Optional[str] = None
+    map_image: Optional[bytes] = None
     status: str = "aguardando"
     historico: list = field(default_factory=list)
 
     def resumo(self) -> str:
         p = []
+        if self.modalidade: p.append(self.modalidade)
+        if self.tipo_veiculo: p.append(self.tipo_veiculo)
         if self.placa:     p.append(self.placa)
         if self.motorista: p.append(self.motorista)
         if self.modelo:    p.append(self.modelo)
@@ -105,6 +115,28 @@ class DadosViagem:
 def extrair_dados(texto_bruto: str) -> DadosViagem:
     dados = DadosViagem()
     texto = texto_bruto.upper()
+
+    # ORIGEM E DESTINO
+    for linha in texto_bruto.split('\n'):
+        linha = linha.strip()
+        if linha.upper().startswith("DE ") and not dados.origem:
+            dados.origem = linha[3:].strip()
+        elif linha.upper().startswith("PARA ") and not dados.destino:
+            dados.destino = linha[5:].strip()
+
+    # MODALIDADE E TIPO VEÍCULO
+    if any(k in texto for k in ["ITEM", "ENTREGA", "PEDIDO", "DELIVERY", "PACOTE"]):
+        dados.modalidade = "Entrega"
+    else:
+        dados.modalidade = "Viagem"
+
+    motos = ["HONDA CG", "YAMAHA", "TITAN", "BROS", "BIZ", "TWISTER", "FAZER", "NMAX", "PCX", "XRE"]
+    if any(m in texto for m in motos) or "MOTO" in texto:
+        dados.tipo_veiculo = "Moto"
+    elif "BICICLETA" in texto or "BIKE" in texto:
+        dados.tipo_veiculo = "Bicicleta"
+    elif any(k in texto for k in ["UBER FLASH", "UBERX", "UBER BLACK"]):
+        dados.tipo_veiculo = "Carro"
 
     # PLACA
     for padrao in [r'\b([A-Z]{3}\d[A-Z]\d{2})\b', r'\b([A-Z]{3}[-]?\d{4})\b']:
@@ -132,7 +164,10 @@ def extrair_dados(texto_bruto: str) -> DadosViagem:
         dados.status = "cancelado"
     elif any(k in texto for k in ("CHEGANDO", "ARRIVING", "CHEGOU", "ARRIVED",
                                     "MOTORISTA CHEGOU", "DRIVER HAS ARRIVED", "AQUI")):
-        dados.status = "chegando"
+        if dados.minutos is not None and dados.minutos > 3:
+            dados.status = "em_rota"
+        else:
+            dados.status = "chegando"
     elif dados.minutos is not None:
         dados.status = "em_rota"
     else:
@@ -200,21 +235,49 @@ def gerar_pagina_simulada(etapa: int) -> str:
 # ═══════════════════════════════════════════════════════════════════════════════
 # ─── ALERTAS E NOTIFICAÇÕES ──────────────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════════════════════════
-def tocar_alerta(urgente=False, entregue=False):
-    def _play():
+
+# Fila de TTS para evitar bugs do pyttsx3 rodando em threads avulsas
+tts_queue = queue.Queue()
+
+def _tts_worker():
+    import pythoncom
+    pythoncom.CoInitialize()  # Requisito para rodar SAPI5 (voz do Windows) em thread separada
+    try:
+        engine = pyttsx3.init()
+        engine.setProperty('rate', 180)  # Falar ligeiramente mais rápido
+    except Exception as e:
+        print("Erro init pyttsx3:", e)
+        return
+        
+    while True:
         try:
-            if entregue:
-                for freq, dur in [(900, 120), (1100, 120), (1400, 200), (1700, 350)]:
-                    winsound.Beep(freq, dur)
-            elif urgente:
-                for freq, dur in [(1800, 150), (1000, 150), (1800, 150), (1000, 300)]:
-                    winsound.Beep(freq, dur)
-            else:
-                winsound.Beep(1200, 200)
-                winsound.Beep(900, 300)
-        except Exception:
-            pass
-    threading.Thread(target=_play, daemon=True).start()
+            texto = tts_queue.get()
+            if texto:
+                engine.say(texto)
+                engine.runAndWait()
+            tts_queue.task_done()
+        except Exception as e:
+            print("Erro tts worker:", e)
+            try:
+                tts_queue.task_done()
+            except:
+                pass
+
+threading.Thread(target=_tts_worker, daemon=True).start()
+
+def tocar_alerta(urgente=False, entregue=False, minutos=None):
+    texto = ""
+    if entregue:
+        texto = "A entrega foi concluída!"
+    elif urgente:
+        texto = "Atenção: O Uber está chegando!"
+    elif minutos == 3:
+        texto = "Atenção: Uber a 3 minutos."
+        
+    if texto:
+        with tts_queue.mutex:
+            tts_queue.queue.clear()
+        tts_queue.put(texto)
 
 
 def notificar(titulo: str, mensagem: str):
@@ -433,6 +496,12 @@ class RastreadorApp(ctk.CTk):
         super().__init__()
 
         self.title("UberTrack — Delta Silk Print")
+        
+        try:
+            self.iconbitmap(BASE_DIR / "icon.ico")
+        except Exception:
+            pass
+
         self.geometry("500x780")
         self.minsize(440, 650)
         self.configure(fg_color=C["bg"])
@@ -445,9 +514,12 @@ class RastreadorApp(ctk.CTk):
                 pass
             # Fallback: tentar via PIL para garantir
             try:
+                import warnings
                 from PIL import Image, ImageTk
-                ico_img = Image.open(str(icon_path))
-                ico_img = ico_img.resize((32, 32), Image.LANCZOS)
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", UserWarning)
+                    ico_img = Image.open(str(icon_path))
+                    ico_img = ico_img.resize((32, 32), Image.LANCZOS)
                 self._icon_photo = ImageTk.PhotoImage(ico_img)
                 self.iconphoto(True, self._icon_photo)
             except Exception:
@@ -668,17 +740,47 @@ class RastreadorApp(ctk.CTk):
         )
         self.live_dot.pack(side="right")
 
-        # Data rows
+        # Data rows - NEW STRUCTURE
+
         data = ctk.CTkFrame(self.veh_card, fg_color="transparent")
         data.pack(fill="x", padx=18, pady=(0, 16))
         data.columnconfigure(0, weight=1)
         data.columnconfigure(1, weight=1)
 
-        self.v_placa   = self._cell(data, "PLACA",      "---",              0, 0, mono=True, size=20)
-        self.v_chegada = self._cell(data, "CHEGADA",    "--:--",            0, 1, color=C["green"], mono=True, size=18)
-        self.v_motor   = self._cell(data, "MOTORISTA",  "Identificando...", 1, 0, span=2, size=18)
-        self.v_modelo  = self._cell(data, "MODELO",     "---",              2, 0)
-        self.v_cor     = self._cell(data, "COR",        "---",              2, 1)
+        # ── Group 1: Principais ──
+        self.v_motor   = self._cell(data, "MOTORISTA",  "Identificando...", 0, 0, span=2, size=22, color=C["white"])
+        self.v_placa   = self._cell(data, "PLACA",      "---",              1, 0, mono=True, size=18, color=C["amber"])
+        self.v_chegada = self._cell(data, "PREVISÃO",   "--:--",            1, 1, color=C["green"], mono=True, size=18)
+        
+        # Spacer
+        sep1 = ctk.CTkFrame(data, height=2, fg_color=C["card_border"])
+        sep1.grid(row=2, column=0, columnspan=2, sticky="ew", pady=10)
+
+        # ── Group 2: Veículo ──
+        self.v_modelo  = self._cell(data, "MODELO",     "---",              3, 0, size=13)
+        self.v_cor     = self._cell(data, "COR",        "---",              3, 1, size=13)
+        self.v_tipo    = self._cell(data, "VEÍCULO",    "---",              4, 0, size=13)
+        self.v_modal   = self._cell(data, "ENTREGA",    "---",              4, 1, size=13)
+
+        # Spacer 
+        sep2 = ctk.CTkFrame(data, height=2, fg_color=C["card_border"])
+        sep2.grid(row=5, column=0, columnspan=2, sticky="ew", pady=10)
+
+        # ── Group 3: Rota ──
+        self.v_origem  = self._cell(data, "LOCAL DE COLETA (DE)",  "---",   6, 0, span=2, size=13, color=C["text2"])
+        self.v_destino = self._cell(data, "DESTINO (PARA)",        "---",   7, 0, span=2, size=13, color=C["text2"])
+
+        # ── Map Preview ──
+        self.map_card = ctk.CTkFrame(
+            self.track_view, fg_color=C["card"], corner_radius=14,
+            border_width=1, border_color=C["card_border"], height=200
+        )
+        self.map_card.pack_propagate(False)
+
+        self.map_label = ctk.CTkLabel(self.map_card, text="Carregando mapa...", text_color=C["text3"])
+        self.map_label.pack(expand=True, fill="both")
+
+        self.map_card.pack(fill="x", pady=(0, 10))
 
         # ── History card ──
         self.hist_card = ctk.CTkFrame(
@@ -702,6 +804,8 @@ class RastreadorApp(ctk.CTk):
         )
         self.hist_text.pack(fill="x", padx=18, pady=(0, 14))
         self.hist_text.configure(state="disabled")
+        
+        self.hist_card.pack(fill="x", pady=(0, 10))
 
         # ── Stop ──
         self.stop_btn = ctk.CTkButton(
@@ -795,7 +899,48 @@ class RastreadorApp(ctk.CTk):
         self.v_motor.configure(text=v.motorista or "Identificando...")
         self.v_modelo.configure(text=v.modelo or "---")
         self.v_cor.configure(text=v.cor or "---")
+        self.v_tipo.configure(text=v.tipo_veiculo or "Carro")
+        self.v_modal.configure(text=v.modalidade or "---")
 
+        origem = (v.origem[:45] + '...') if v.origem and len(v.origem) > 45 else (v.origem or "---")
+        destino = (v.destino[:45] + '...') if v.destino and len(v.destino) > 45 else (v.destino or "---")
+        self.v_origem.configure(text=origem)
+        self.v_destino.configure(text=destino)
+
+        # Map Preview
+        if v.map_image:
+            try:
+                img = Image.open(io.BytesIO(v.map_image))
+                img = img.convert("RGBA")
+                
+                # O Chrome Headless tem tamanho 400x750. 
+                # Vamos remover apenas a barrinha inútil do topo, preservando todo o fundo
+                # onde ficam os dados originais e a foto do motorista no site.
+                width, height = img.size
+                
+                # left, upper, right, lower
+                # Corta apenas 60px de cima
+                img = img.crop((0, 60, width, height))
+                
+                # Resize para caber bonitinho no painel
+                new_w = 380
+                new_h = int((new_w / width) * img.height)
+                img = img.resize((new_w, new_h), Image.LANCZOS)
+                
+                # Ajusta a altura ideal dinamicamente com base no resize + pad
+                self.map_card.configure(height=new_h + 2)
+                
+                # Apply rounded corners manually via PIL for a smooth look
+                mask = Image.new("L", img.size, 0)
+                draw = ImageDraw.Draw(mask)
+                draw.rounded_rectangle((0, 0, img.size[0], img.size[1]), radius=13, fill=255)
+                img.putalpha(mask)
+
+                ctk_img = ctk.CTkImage(light_image=img, dark_image=img, size=(img.width, img.height))
+                self.map_label.configure(image=ctk_img, text="")
+            except Exception as e:
+                self.map_label.configure(text="Mapa indisponível", image="")
+        
         # Live dot pulse
         if v.status in ("em_rota", "chegando"):
             self.live_dot.configure(text="● AO VIVO", text_color=C["green"])
@@ -868,7 +1013,7 @@ class RastreadorApp(ctk.CTk):
                 break
             self._processar(gerar_pagina_simulada(etapa))
             self.after(0, self._update_ui)
-            time.sleep(2.5)
+            time.sleep(7.0)
         log("DEBUG finalizado")
 
     def _run_real(self, link: str):
@@ -887,6 +1032,7 @@ class RastreadorApp(ctk.CTk):
                 options.binary_location = bp
                 break
         options.add_argument("--headless=new")
+        options.add_argument("--window-size=400,750")
         options.add_argument("--disable-notifications")
         options.add_argument("--disable-popup-blocking")
         options.add_argument("--log-level=3")
@@ -902,20 +1048,28 @@ class RastreadorApp(ctk.CTk):
 
         try:
             driver.get(link)
-            time.sleep(15)
+            time.sleep(5)
             notificar("UberTrack", "Monitoramento ativo ✔")
 
             while not self.stop_event.is_set():
                 try:
+                    # Tenta remover o banner de cookies e overlays pelo javascript antes do screenshot
+                    script_remover_modais = """
+                    var banners = document.querySelectorAll('div[data-testid="cookie-banner"], div[role="dialog"]');
+                    banners.forEach(b => b.remove());
+                    """
+                    driver.execute_script(script_remover_modais)
+                    
                     texto = driver.find_element(By.TAG_NAME, "body").text
+                    png = driver.get_screenshot_as_png()
                 except Exception:
-                    time.sleep(15)
+                    time.sleep(3)
                     continue
-                self._processar(texto)
+                self._processar(texto, png)
                 self.after(0, self._update_ui)
                 if self.viagem.status in ("entregue", "cancelado"):
                     break
-                wait = 10 if (self.viagem.minutos and self.viagem.minutos <= 3) else 30
+                wait = 5 if (self.viagem.minutos and self.viagem.minutos <= 3) else 15
                 for _ in range(wait):
                     if self.stop_event.is_set():
                         break
@@ -928,9 +1082,10 @@ class RastreadorApp(ctk.CTk):
         log("Rastreamento finalizado")
 
     # ─── PROCESSAR ────────────────────────────────────────────────────────────
-    def _processar(self, texto: str):
+    def _processar(self, texto: str, map_png: bytes = None):
         novo = extrair_dados(texto)
         v = self.viagem
+        if map_png: v.map_image = map_png
         v.minutos = novo.minutos if novo.minutos is not None else v.minutos
         v.status = novo.status
         v.chegada = novo.chegada or v.chegada
@@ -938,24 +1093,35 @@ class RastreadorApp(ctk.CTk):
         if novo.motorista: v.motorista = novo.motorista
         if novo.modelo: v.modelo = novo.modelo
         if novo.cor: v.cor = novo.cor
+        if novo.origem: v.origem = novo.origem
+        if novo.destino: v.destino = novo.destino
+        if novo.modalidade: v.modalidade = novo.modalidade
+        if novo.tipo_veiculo: v.tipo_veiculo = novo.tipo_veiculo
 
         if v.placa and not self.painel_mostrado:
             self.painel_mostrado = True
             notificar("🚘 Veículo Identificado", f"{v.placa} • {v.modelo or ''} {v.cor or ''}")
 
         if v.status == "entregue":
-            tocar_alerta(entregue=True)
-            notificar("📦 Item Entregue!", v.resumo())
+            if getattr(self, "ultimo_status", None) != "entregue":
+                tocar_alerta(entregue=True)
+                notificar("📦 Item Entregue!", v.resumo())
+                self.ultimo_status = "entregue"
         elif v.status == "chegando":
-            tocar_alerta(urgente=True)
-            notificar("🚨 UBER CHEGOU!", v.resumo())
+            if getattr(self, "ultimo_status", None) != "chegando":
+                tocar_alerta(urgente=True)
+                notificar("🚨 UBER CHEGOU!", v.resumo())
+                self.ultimo_status = "chegando"
         elif v.status == "cancelado":
-            notificar("⚠ Viagem Cancelada", "Verifique o app da Uber.")
+            if getattr(self, "ultimo_status", None) != "cancelado":
+                notificar("⚠ Viagem Cancelada", "Verifique o app da Uber.")
+                self.ultimo_status = "cancelado"
         elif v.status == "em_rota" and v.minutos is not None:
+            self.ultimo_status = "em_rota"
             if v.minutos != self.ultimo_minuto:
                 v.historico.append((datetime.now().strftime("%H:%M:%S"), v.minutos))
                 if v.minutos <= 3:
-                    tocar_alerta(urgente=False)
+                    tocar_alerta(urgente=False, minutos=v.minutos)
                     notificar(f"⚡ CORRE! {v.minutos} min!", v.resumo())
                 elif v.minutos in (10, 5):
                     notificar(f"⏱ {v.minutos} minutos", v.resumo())

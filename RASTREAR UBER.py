@@ -70,11 +70,17 @@ class DadosViagem:
     cor:       Optional[str] = None
     chegada:   Optional[str] = None
     minutos:   Optional[int] = None
+    origem:    Optional[str] = None
+    destino:   Optional[str] = None
+    tipo_veiculo: Optional[str] = None
+    modalidade: Optional[str] = None
     status:    str = "aguardando"
     historico: list = field(default_factory=list)
 
     def resumo(self) -> str:
         partes = []
+        if self.modalidade: partes.append(f"Modo: {self.modalidade}")
+        if self.tipo_veiculo: partes.append(f"Tipo: {self.tipo_veiculo}")
         if self.placa:     partes.append(f"Placa: {self.placa}")
         if self.motorista: partes.append(f"Motorista: {self.motorista}")
         if self.modelo:    partes.append(f"Veículo: {self.modelo}")
@@ -143,23 +149,51 @@ logger = Logger(CONFIG["SALVAR_LOG"], CONFIG["ARQUIVO_LOG"])
 
 
 # ─── SOM ───────────────────────────────────────────────────────────────────────
-def tocar_alerta(urgente: bool = False, entregue: bool = False):
+import queue
+import threading
+
+tts_queue = queue.Queue()
+
+def _tts_worker():
+    import pythoncom
+    pythoncom.CoInitialize()
     try:
-        import winsound
-        if entregue:
-            # Melodia de conclusão ascendente ✓
-            for freq, dur in [(900, 120), (1100, 120), (1400, 200), (1700, 350)]:
-                winsound.Beep(freq, dur)
-        elif urgente:
-            # Sirene — 4 bipes rápidos
-            for freq, dur in [(1800, 150), (1000, 150), (1800, 150), (1000, 300)]:
-                winsound.Beep(freq, dur)
-        else:
-            # Bipe suave de aviso
-            winsound.Beep(1200, 200)
-            winsound.Beep(900,  300)
-    except Exception:
-        print('\a', end='', flush=True)
+        import pyttsx3
+        engine = pyttsx3.init()
+        engine.setProperty('rate', 180)  # Falar ligeiramente mais rápido
+    except Exception as e:
+        print("Erro init pyttsx3:", e)
+        return
+        
+    while True:
+        try:
+            texto = tts_queue.get()
+            if texto:
+                engine.say(texto)
+                engine.runAndWait()
+            tts_queue.task_done()
+        except Exception as e:
+            print("Erro tts worker:", e)
+            try:
+                tts_queue.task_done()
+            except:
+                pass
+
+threading.Thread(target=_tts_worker, daemon=True).start()
+
+def tocar_alerta(urgente: bool = False, entregue: bool = False, minutos: int = None):
+    texto = ""
+    if entregue:
+        texto = "A entrega foi concluída!"
+    elif urgente:
+        texto = "Atenção: O Uber está chegando!"
+    elif minutos == 3:
+        texto = "Atenção: Uber a 3 minutos."
+        
+    if texto:
+        with tts_queue.mutex:
+            tts_queue.queue.clear()
+        tts_queue.put(texto)
 
 
 # ─── NOTIFICAÇÃO ───────────────────────────────────────────────────────────────
@@ -172,14 +206,40 @@ def notificar(titulo: str, mensagem: str):
                 app_name="Uber Tracker 3.0",
                 timeout=10,
             )
-        except Exception:
-            pass
+        except Exception as e:
+            print("Erro tts worker:", e)
+            try:
+                tts_queue.task_done()
+            except:
+                pass
 
 
 # ─── EXTRAÇÃO DE DADOS DA PÁGINA ──────────────────────────────────────────────
 def extrair_dados(texto_bruto: str) -> DadosViagem:
     dados = DadosViagem()
     texto = texto_bruto.upper()
+
+    # ORIGEM E DESTINO
+    for linha in texto_bruto.split('\n'):
+        linha = linha.strip()
+        if linha.upper().startswith("DE ") and not dados.origem:
+            dados.origem = linha[3:].strip()
+        elif linha.upper().startswith("PARA ") and not dados.destino:
+            dados.destino = linha[5:].strip()
+
+    # MODALIDADE E TIPO VEÍCULO
+    if any(k in texto for k in ["ITEM", "ENTREGA", "PEDIDO", "DELIVERY", "PACOTE"]):
+        dados.modalidade = "Entrega"
+    else:
+        dados.modalidade = "Viagem"
+
+    motos = ["HONDA CG", "YAMAHA", "TITAN", "BROS", "BIZ", "TWISTER", "FAZER", "NMAX", "PCX", "XRE"]
+    if any(m in texto for m in motos) or "MOTO" in texto:
+        dados.tipo_veiculo = "Moto"
+    elif "BICICLETA" in texto or "BIKE" in texto:
+        dados.tipo_veiculo = "Bicicleta"
+    elif any(k in texto for k in ["UBER FLASH", "UBERX", "UBER BLACK"]):
+        dados.tipo_veiculo = "Carro"
 
     # 1. PLACA — Mercosul (ABC1D23) ou Antigo (ABC1234)
     for padrao in [
@@ -218,7 +278,10 @@ def extrair_dados(texto_bruto: str) -> DadosViagem:
     elif any(k in texto for k in ("CANCELAD", "CANCELED")):
         dados.status = "cancelado"
     elif any(k in texto for k in frases_chegando):
-        dados.status = "chegando"
+        if dados.minutos is not None and dados.minutos > 3:
+            dados.status = "em_rota"
+        else:
+            dados.status = "chegando"
     elif dados.minutos is not None:
         dados.status = "em_rota"
     else:
@@ -281,10 +344,14 @@ def exibir_painel(viagem: DadosViagem):
 {Fore.CYAN}┌──────────────────────────────────────────────┐
 │  🚘  DADOS DO VEÍCULO                        │
 ├──────────────────────────────────────────────┤
+│  Serviço:    {Fore.WHITE}{Style.BRIGHT}{(viagem.modalidade or '---'):20}{Style.RESET_ALL}{Fore.CYAN}  │
+│  Tipo:       {Fore.WHITE}{(viagem.tipo_veiculo or '---'):20}{Fore.CYAN}  │
 │  Placa:      {Fore.WHITE}{Style.BRIGHT}{(viagem.placa or 'Detectando...'):20}{Style.RESET_ALL}{Fore.CYAN}  │
 │  Motorista:  {Fore.WHITE}{Style.BRIGHT}{(viagem.motorista or 'Detectando...'):20}{Style.RESET_ALL}{Fore.CYAN}  │
 │  Modelo:     {Fore.WHITE}{(viagem.modelo or 'Detectando...'):20}{Fore.CYAN}  │
 │  Cor:        {Fore.WHITE}{(viagem.cor or 'Detectando...'):20}{Fore.CYAN}  │
+│  Origem:     {Fore.WHITE}{(viagem.origem[:18]+'...' if viagem.origem and len(viagem.origem)>18 else viagem.origem or '---'):20}{Fore.CYAN}  │
+│  Destino:    {Fore.WHITE}{(viagem.destino[:18]+'...' if viagem.destino and len(viagem.destino)>18 else viagem.destino or '---'):20}{Fore.CYAN}  │
 │  Chegada:    {Fore.GREEN}{Style.BRIGHT}{(viagem.chegada or 'Detectando...'):20}{Style.RESET_ALL}{Fore.CYAN}  │
 └──────────────────────────────────────────────┘{Style.RESET_ALL}""")
 
@@ -413,6 +480,10 @@ def processar_ciclo(viagem: DadosViagem, texto: str,
     if novo.motorista: viagem.motorista = novo.motorista
     if novo.modelo:    viagem.modelo    = novo.modelo
     if novo.cor:       viagem.cor       = novo.cor
+    if novo.origem:    viagem.origem    = novo.origem
+    if novo.destino:   viagem.destino   = novo.destino
+    if novo.modalidade: viagem.modalidade = novo.modalidade
+    if novo.tipo_veiculo: viagem.tipo_veiculo = novo.tipo_veiculo
 
     if modo_debug:
         logger.debug(f"status={viagem.status} | minutos={viagem.minutos} | placa={viagem.placa}")
@@ -460,7 +531,7 @@ def processar_ciclo(viagem: DadosViagem, texto: str,
             viagem.historico.append((datetime.now().strftime("%H:%M:%S"), m))
             if m <= CONFIG["MINUTOS_ALERTA"]:
                 logger.urgente(f"{m} min restantes! | {viagem.resumo()}")
-                tocar_alerta(urgente=False)
+                tocar_alerta(urgente=False, minutos=m)
                 notificar(f"⚡ CORRE! {m} min!", viagem.resumo())
             else:
                 logger.ok(f"{m} min restantes | Chegada: {viagem.chegada or '--:--'}")
@@ -518,7 +589,11 @@ def rodar_real(link: str, on_update=None):
     options.add_experimental_option("detach", True)
     options.add_argument("--disable-notifications")
     options.add_argument("--disable-popup-blocking")
-    options.add_argument("--headless") # Added headless for background usage
+    options.add_argument("--headless=new")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--blink-settings=imagesEnabled=false")
     options.add_argument("--log-level=3")
     options.add_experimental_option("excludeSwitches", ["enable-logging"])
 
@@ -540,8 +615,8 @@ def rodar_real(link: str, on_update=None):
     signal.signal(signal.SIGINT, encerrar)
 
     driver.get(link)
-    logger.info("Aguardando carregamento da página (15s)...")
-    time.sleep(15)
+    logger.info("Aguardando carregamento da página (5s)...")
+    time.sleep(5)
     notificar("Rastreador Uber Iniciado", "Monitoramento ativo ✔")
     logger.ok("Monitoramento iniciado! Pressione Ctrl+C para encerrar.\n")
 
@@ -553,8 +628,8 @@ def rodar_real(link: str, on_update=None):
         try:
             texto_bruto = driver.find_element(By.TAG_NAME, "body").text
         except Exception as e:
-            logger.alerta(f"Erro de leitura: {e}. Tentando em 15s...")
-            time.sleep(15)
+            logger.alerta(f"Erro de leitura: {e}. Tentando em 3s...")
+            time.sleep(3)
             continue
 
         painel_mostrado, ultimo_minuto, encerrar = processar_ciclo(

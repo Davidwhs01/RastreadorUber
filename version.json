@@ -1,5 +1,5 @@
 {
-    "version": "3.3.0",
+    "version": "3.3.1",
     "github_repo": "Davidwhs01/RastreadorUber",
-    "changelog": "Versão 3.3.0: Novo recurso de Identificação! Agora você pode nomear sua entrega (ex: 'DTF') e a voz te avisará qual Uber específico está chegando. Ideal para múltiplos pedidos simultâneos."
+    "changelog": "Versão 3.3.1: (Hotfix) Corrigido o bug visual onde a tela ficava totalmente preta/em branco após clicar no botão Parar Rastreamento."
 }

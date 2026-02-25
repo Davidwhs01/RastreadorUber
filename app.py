@@ -903,12 +903,13 @@ class RastreadorApp(ctk.CTk):
     # ─── SHOW/HIDE ────────────────────────────────────────────────────────────
     def _show_track(self):
         self.input_card.pack_forget()
-        self.track_view.pack(fill="x", pady=(24, 0))
+        self.track_view.pack(fill="x", pady=(24, 0), in_=self.main)
 
     def _show_input(self):
         self.track_view.pack_forget()
         self.hist_card.pack_forget()
-        self.input_card.pack(fill="x", pady=(24, 0))
+        # Ao voltar, garante que a UI o recoloque atrelado ao main corretamente
+        self.input_card.pack(fill="x", pady=(24, 0), in_=self.main)
 
     # ─── UPDATE UI (thread-safe) ──────────────────────────────────────────────
     def _update_ui(self):

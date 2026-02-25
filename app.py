@@ -534,34 +534,13 @@ class RastreadorApp(ctk.CTk):
         super().__init__()
 
         self.title("UberTrack — Delta Silk Print")
-        
-        try:
-            self.iconbitmap(BASE_DIR / "icon.ico")
-        except Exception:
-            pass
-
         self.geometry("500x780")
         self.minsize(440, 650)
         self.configure(fg_color=C["bg"])
 
-        icon_path = BASE_DIR / "icon.ico"
-        if icon_path.exists():
-            try:
-                self.iconbitmap(str(icon_path))
-            except Exception:
-                pass
-            # Fallback: tentar via PIL para garantir
-            try:
-                import warnings
-                from PIL import Image, ImageTk
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore", UserWarning)
-                    ico_img = Image.open(str(icon_path))
-                    ico_img = ico_img.resize((32, 32), Image.LANCZOS)
-                self._icon_photo = ImageTk.PhotoImage(ico_img)
-                self.iconphoto(True, self._icon_photo)
-            except Exception:
-                pass
+        # Ícone será setado via after() para sobrescrever o ícone padrão do customtkinter
+        self._icon_path = BASE_DIR / "icon.ico"
+        self.after(200, self._apply_icon)
 
         # State
         self.viagem = DadosViagem()
@@ -574,6 +553,23 @@ class RastreadorApp(ctk.CTk):
         self._build_ui()
         threading.Thread(target=self._check_update_bg, daemon=True).start()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    def _apply_icon(self):
+        """Aplica o ícone customizado DEPOIS que o customtkinter termina de setar o padrão."""
+        if not self._icon_path.exists():
+            return
+        try:
+            self.iconbitmap(str(self._icon_path))
+        except Exception:
+            pass
+        try:
+            from PIL import Image, ImageTk
+            ico_img = Image.open(str(self._icon_path))
+            ico_img = ico_img.resize((32, 32), Image.LANCZOS)
+            self._icon_photo = ImageTk.PhotoImage(ico_img)
+            self.iconphoto(True, self._icon_photo)
+        except Exception:
+            pass
 
     # ─── UI ───────────────────────────────────────────────────────────────────
     def _build_ui(self):
@@ -862,7 +858,7 @@ class RastreadorApp(ctk.CTk):
 
         ctk.CTkLabel(
             footer,
-            text=f"Criado por Delta Silk Print  ·  v{APP_VERSION}",
+            text=f"Criado por Delta Silk Print  ·  v{read_version().get('version', APP_VERSION)}",
             font=ctk.CTkFont(size=10), text_color=C["text3"]
         ).pack(expand=True)
 

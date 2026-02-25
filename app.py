@@ -37,10 +37,14 @@ def get_base_dir() -> Path:
     return Path(__file__).resolve().parent
 
 BASE_DIR = get_base_dir()
-VERSION_FILE = BASE_DIR / "version.json"
 LOG_FILE = BASE_DIR / "uber_tracker.log"
 
-APP_VERSION = "3.1.3"
+# VERSION_FILE — no .exe empacotado, --add-data joga em _internal/
+_version_candidates = [BASE_DIR / "version.json"]
+if getattr(sys, 'frozen', False):
+    _version_candidates.insert(0, BASE_DIR / "_internal" / "version.json")
+VERSION_FILE = next((p for p in _version_candidates if p.exists()), BASE_DIR / "version.json")
+
 APP_TITLE = "UberTrack by Delta"
 
 # ─── Windows: definir AppUserModelId para notificações corretas ───────────────
@@ -59,7 +63,9 @@ def read_version() -> dict:
                 return json.load(f)
         except Exception:
             pass
-    return {"version": APP_VERSION, "update_url": "", "changelog": ""}
+    return {"version": "0.0.0", "update_url": "", "changelog": ""}
+
+APP_VERSION = read_version().get("version", "0.0.0")
 
 # ─── SELENIUM ─────────────────────────────────────────────────────────────────
 try:
@@ -869,7 +875,7 @@ class RastreadorApp(ctk.CTk):
 
         ctk.CTkLabel(
             footer,
-            text=f"Criado por Delta Silk Print  ·  v{read_version().get('version', APP_VERSION)}",
+            text=f"Criado por Delta Silk Print  ·  v{APP_VERSION}",
             font=ctk.CTkFont(size=10), text_color=C["text3"]
         ).pack(expand=True)
 

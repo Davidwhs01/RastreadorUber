@@ -539,7 +539,11 @@ class RastreadorApp(ctk.CTk):
         self.configure(fg_color=C["bg"])
 
         # Ícone será setado via after() para sobrescrever o ícone padrão do customtkinter
-        self._icon_path = BASE_DIR / "icon.ico"
+        # No .exe empacotado, --add-data joga arquivos dentro de _internal/
+        icon_candidates = [BASE_DIR / "icon.ico"]
+        if getattr(sys, 'frozen', False):
+            icon_candidates.insert(0, BASE_DIR / "_internal" / "icon.ico")
+        self._icon_path = next((p for p in icon_candidates if p.exists()), BASE_DIR / "icon.ico")
         self.after(200, self._apply_icon)
 
         # State

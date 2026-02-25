@@ -565,7 +565,14 @@ class RastreadorApp(ctk.CTk):
         try:
             from PIL import Image, ImageTk
             ico_img = Image.open(str(self._icon_path))
-            ico_img = ico_img.resize((32, 32), Image.LANCZOS)
+            # ICO já contém múltiplas resoluções; usar a maior disponível
+            ico_img.size  # força carregar
+            if hasattr(ico_img, 'ico'):
+                # Pegar a maior resolução do .ico
+                sizes = ico_img.ico.sizes()
+                best = max(sizes, key=lambda s: s[0])
+                ico_img = ico_img.ico.getimage(best)
+            ico_img = ico_img.convert("RGBA")
             self._icon_photo = ImageTk.PhotoImage(ico_img)
             self.iconphoto(True, self._icon_photo)
         except Exception:

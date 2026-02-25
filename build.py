@@ -131,6 +131,7 @@ def main():
         "--hidden-import=pyttsx3",
         "--hidden-import=pyttsx3.drivers",
         "--hidden-import=pyttsx3.drivers.sapi5",
+        "--hidden-import=pythoncom",
     ]
 
     # ─── Collect customtkinter data ───────────────────────────────────────

@@ -40,7 +40,7 @@ Use o seu `build.py` automatizado. Ele vai coletar o customtkinter, bibliotecas,
 
 // turbo
 ```powershell
-python build.py
+$env:PYTHONIOENCODING="utf-8"; & 'C:\Users\doug_\AppData\Local\Programs\Python\Python311\python.exe' build.py
 ```
 *O executável do app já compilado com todas as dependências do Chrome será cuspido dentro da pasta `dist/UberTrack`.*
 

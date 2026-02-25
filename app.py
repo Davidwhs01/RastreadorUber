@@ -17,7 +17,7 @@ import os
 import re
 import sys
 import json
-import pyttsx3
+# pyttsx3 é importado lazy dentro do _tts_worker() para não crashar o PyInstaller
 import tempfile
 import zipfile
 import shutil
@@ -192,16 +192,32 @@ def extrair_dados(texto_bruto: str) -> DadosViagem:
             dados.modelo = modelo.title()
             break
 
-    # MOTORISTA
-    ignorar = {"MIN", "PM", "AM", "UBER", "VIAGEM", "CHEGADA", "ITEM", "PARA",
+    # MOTORISTA — busca nome do motorista na página
+    # Heurística: procura por linhas curtas que parecem nomes próprios
+    ignorar_upper = {"MIN", "PM", "AM", "UBER", "VIAGEM", "CHEGADA", "ITEM", "PARA",
                "COM", "NAO", "SIM", "RUA", "AV", "AVE", "STATUS", "BRANCO",
-               "PRETO", "PRATA", "CINZA", "DEBUG", "ENTREGUE", "ENTREGA"}
+               "PRETO", "PRATA", "CINZA", "DEBUG", "ENTREGUE", "ENTREGA",
+               "MOTO", "CARRO", "BICICLETA", "MODA", "LOCAL", "DE", "PARTIDA",
+               "DESTINO", "INFORMAÇÕES", "DADOS", "PEDIDO", "DELIVERY",
+               "HONDA", "YAMAHA", "FIAT", "TOYOTA", "HYUNDAI", "CHEVROLET",
+               "CG", "SAPOPEMBA"}
     for linha in texto_bruto.split("\n"):
         linha = linha.strip()
-        if (3 <= len(linha) <= 20 and linha.isupper()
-                and linha not in ignorar
-                and not re.search(r'\d', linha)
-                and not any(k in linha for k in ["RUA", "AV.", "MIN", "PM", "AM"])):
+        linha_upper = linha.upper()
+        if not linha or len(linha) < 2 or len(linha) > 25:
+            continue
+        if linha_upper in ignorar_upper:
+            continue
+        if re.search(r'\d', linha):
+            continue
+        if any(k in linha_upper for k in ["RUA", "AV.", "MIN", "PM", "AM", "HTTP",
+                                           "UBER", "VIAGEM", "OBRIGADO", "ENTREGA",
+                                           "FOI ENTREGUE", "A CAMINHO", "CHEGANDO",
+                                           "INFORMAÇ", "RASTREAMENTO", "GALEÃO",
+                                           "LOCAL DE", "DE PARTIDA"]):
+            continue
+        # Aceita: nomes totalmente em maiúsculas OU capitalizados (ex: "Pedro", "BRENO")
+        if (linha.isupper() or (linha[0].isupper() and linha.isalpha())):
             dados.motorista = linha.title()
             break
 
@@ -240,13 +256,24 @@ def gerar_pagina_simulada(etapa: int) -> str:
 tts_queue = queue.Queue()
 
 def _tts_worker():
-    import pythoncom
-    pythoncom.CoInitialize()  # Requisito para rodar SAPI5 (voz do Windows) em thread separada
     try:
+        import pythoncom
+        pythoncom.CoInitialize()
+    except Exception:
+        pass
+    try:
+        import pyttsx3
         engine = pyttsx3.init()
-        engine.setProperty('rate', 180)  # Falar ligeiramente mais rápido
+        engine.setProperty('rate', 180)
     except Exception as e:
-        print("Erro init pyttsx3:", e)
+        print("Erro init pyttsx3 (voz desativada):", e)
+        # Drena a fila silenciosamente para não travar
+        while True:
+            try:
+                tts_queue.get()
+                tts_queue.task_done()
+            except:
+                pass
         return
         
     while True:
@@ -271,8 +298,13 @@ def tocar_alerta(urgente=False, entregue=False, minutos=None):
         texto = "A entrega foi concluída!"
     elif urgente:
         texto = "Atenção: O Uber está chegando!"
-    elif minutos == 3:
-        texto = "Atenção: Uber a 3 minutos."
+    elif minutos is not None:
+        if minutos <= 3:
+            texto = f"Atenção: Uber a {minutos} minutos. Corra!"
+        elif minutos == 5:
+            texto = "Uber a 5 minutos."
+        elif minutos == 10:
+            texto = "Uber a 10 minutos."
         
     if texto:
         with tts_queue.mutex:
@@ -1130,6 +1162,7 @@ class RastreadorApp(ctk.CTk):
                     tocar_alerta(urgente=False, minutos=v.minutos)
                     notificar(f"⚡ CORRE! {v.minutos} min!", v.resumo())
                 elif v.minutos in (10, 5):
+                    tocar_alerta(urgente=False, minutos=v.minutos)
                     notificar(f"⏱ {v.minutos} minutos", v.resumo())
                 self.ultimo_minuto = v.minutos
 
@@ -1159,7 +1192,10 @@ class RastreadorApp(ctk.CTk):
         if apply_update(url):
             self.after(0, lambda: self.update_label.configure(text="✅ Atualizado! Reinicie."))
         else:
-            self.after(0, lambda: self.update_label.configure(text="❌ Falha"))
+            # Fallback: abre o link direto do GitHub no navegador
+            import webbrowser
+            webbrowser.open(url)
+            self.after(0, lambda: self.update_label.configure(text="⬇ Baixando pelo navegador..."))
             self.after(0, lambda: self.update_btn.configure(text="Tentar", state="normal"))
 
     # ─── CLOSE ────────────────────────────────────────────────────────────────

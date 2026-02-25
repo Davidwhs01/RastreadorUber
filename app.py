@@ -619,7 +619,7 @@ class RastreadorApp(ctk.CTk):
         )
         self.update_label = ctk.CTkLabel(
             self.update_frame, text="", font=ctk.CTkFont(size=11),
-            text_color=C["green"]
+            text_color=C["text"]
         )
         self.update_label.pack(side="left", padx=12, pady=8)
         self.update_btn = ctk.CTkButton(
@@ -1197,12 +1197,13 @@ class RastreadorApp(ctk.CTk):
     def _apply_update_action(self):
         url = getattr(self, '_dl_url', '')
         if not url: return
-        self.update_btn.configure(text="...", state="disabled")
+        self.update_btn.configure(text="Baixando...", state="disabled")
         threading.Thread(target=self._do_update, args=(url,), daemon=True).start()
 
     def _do_update(self, url):
         if apply_update(url):
-            self.after(0, lambda: self.update_label.configure(text="✅ Atualizado! Reinicie."))
+            self.after(0, lambda: self.update_label.configure(text="✅ Atualizado com sucesso!", text_color=C["text"]))
+            self.after(0, lambda: self.update_btn.configure(text="Reiniciar", state="normal", command=self._restart_app))
         else:
             # Fallback: abre o link direto do GitHub no navegador
             import webbrowser
@@ -1211,6 +1212,12 @@ class RastreadorApp(ctk.CTk):
             self.after(0, lambda: self.update_btn.configure(text="Tentar", state="normal"))
 
     # ─── CLOSE ────────────────────────────────────────────────────────────────
+    def _restart_app(self):
+        """Reinicia a aplicação chamando o executável (ou script) novamente."""
+        self._on_close()
+        import subprocess
+        subprocess.Popen([sys.executable] + sys.argv[1:])
+
     def _on_close(self):
         self.stop_event.set()
         self.destroy()

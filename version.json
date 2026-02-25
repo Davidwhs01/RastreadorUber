@@ -1,5 +1,5 @@
 {
-    "version": "3.2.6",
+    "version": "3.2.7",
     "github_repo": "Davidwhs01/RastreadorUber",
-    "changelog": "Versão 3.2.6: Ajuste refinado nos alertas de voz (menos repetições) e fusão de alertas (minuto 1 = chegando)."
+    "changelog": "Versão 3.2.7: Ajuste visual do banner de atualização e botão Reiniciar app via um clique."
 }

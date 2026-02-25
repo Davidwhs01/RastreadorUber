@@ -2,6 +2,8 @@
 build/
 dist/
 *.spec
+*.zip
+installer_output/
 
 # Python
 __pycache__/

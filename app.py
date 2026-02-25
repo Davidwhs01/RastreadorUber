@@ -568,25 +568,19 @@ class RastreadorApp(ctk.CTk):
         """Aplica o ícone customizado DEPOIS que o customtkinter termina de setar o padrão."""
         if not self._icon_path.exists():
             return
+            
         try:
-            self.iconbitmap(str(self._icon_path))
-        except Exception:
-            pass
-        try:
-            from PIL import Image, ImageTk
-            ico_img = Image.open(str(self._icon_path))
-            # ICO já contém múltiplas resoluções; usar a maior disponível
-            ico_img.size  # força carregar
-            if hasattr(ico_img, 'ico'):
-                # Pegar a maior resolução do .ico
-                sizes = ico_img.ico.sizes()
-                best = max(sizes, key=lambda s: s[0])
-                ico_img = ico_img.ico.getimage(best)
-            ico_img = ico_img.convert("RGBA")
-            self._icon_photo = ImageTk.PhotoImage(ico_img)
-            self.iconphoto(True, self._icon_photo)
-        except Exception:
-            pass
+            # No Windows, iconbitmap é a forma nativa de setar .ico e preserva 
+            # todas as resoluções e transparências dinamicamente para a barra de tarefas.
+            if sys.platform.startswith("win"):
+                self.iconbitmap(str(self._icon_path))
+            else:
+                from PIL import Image, ImageTk
+                ico_img = Image.open(str(self._icon_path)).convert("RGBA")
+                self._icon_photo = ImageTk.PhotoImage(ico_img)
+                self.iconphoto(True, self._icon_photo)
+        except Exception as e:
+            print(f"Erro ao setar icone: {e}")
 
     # ─── UI ───────────────────────────────────────────────────────────────────
     def _build_ui(self):

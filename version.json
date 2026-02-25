@@ -1,5 +1,5 @@
 {
-    "version": "3.2.5",
+    "version": "3.2.6",
     "github_repo": "Davidwhs01/RastreadorUber",
-    "changelog": "Versão 3.2.5: Ajustes de interface, segurança aprimorada de repositório e nova documentação."
+    "changelog": "Versão 3.2.6: Ajuste refinado nos alertas de voz (menos repetições) e fusão de alertas (minuto 1 = chegando)."
 }

@@ -59,9 +59,10 @@ except Exception:
 def read_version() -> dict:
     if VERSION_FILE.exists():
         try:
-            with open(VERSION_FILE, "r", encoding="utf-8") as f:
+            with open(VERSION_FILE, "r", encoding="utf-8-sig") as f:
                 return json.load(f)
-        except Exception:
+        except Exception as e:
+            print(f"Erro lendo version.json: {e}")
             pass
     return {"version": "0.0.0", "update_url": "", "changelog": ""}
 
@@ -305,12 +306,10 @@ def tocar_alerta(urgente=False, entregue=False, minutos=None):
     elif urgente:
         texto = "Atenção: O Uber está chegando!"
     elif minutos is not None:
-        if minutos <= 3:
-            texto = f"Atenção: Uber a {minutos} minutos. Corra!"
-        elif minutos == 5:
-            texto = "Uber a 5 minutos."
-        elif minutos == 10:
-            texto = "Uber a 10 minutos."
+        if minutos == 3:
+            texto = "Uber a três minutos."
+        else:
+            texto = f"Uber a {minutos} minutos."
         
     if texto:
         with tts_queue.mutex:
@@ -1020,6 +1019,8 @@ class RastreadorApp(ctk.CTk):
         self._err_hide()
         self.viagem = DadosViagem()
         self.ultimo_minuto = -1
+        self.alerta_3_tocado = False
+        self.alerta_1_tocado = False
         self.painel_mostrado = False
         self.stop_event.clear()
         self.is_tracking = True
@@ -1154,7 +1155,9 @@ class RastreadorApp(ctk.CTk):
                 self.ultimo_status = "entregue"
         elif v.status == "chegando":
             if getattr(self, "ultimo_status", None) != "chegando":
-                tocar_alerta(urgente=True)
+                if not getattr(self, "alerta_1_tocado", False):
+                    self.alerta_1_tocado = True
+                    tocar_alerta(urgente=True)
                 notificar("🚨 UBER CHEGOU!", v.resumo())
                 self.ultimo_status = "chegando"
         elif v.status == "cancelado":
@@ -1165,12 +1168,14 @@ class RastreadorApp(ctk.CTk):
             self.ultimo_status = "em_rota"
             if v.minutos != self.ultimo_minuto:
                 v.historico.append((datetime.now().strftime("%H:%M:%S"), v.minutos))
-                if v.minutos <= 3:
-                    tocar_alerta(urgente=False, minutos=v.minutos)
-                    notificar(f"⚡ CORRE! {v.minutos} min!", v.resumo())
-                elif v.minutos in (10, 5):
-                    tocar_alerta(urgente=False, minutos=v.minutos)
-                    notificar(f"⏱ {v.minutos} minutos", v.resumo())
+                if v.minutos <= 1 and not getattr(self, "alerta_1_tocado", False):
+                    self.alerta_1_tocado = True
+                    tocar_alerta(urgente=True)
+                    notificar(f"⚡ DESCENDO! {v.minutos} min!", v.resumo())
+                elif v.minutos <= 3 and not getattr(self, "alerta_3_tocado", False):
+                    self.alerta_3_tocado = True
+                    tocar_alerta(urgente=False, minutos=3)
+                    notificar(f"⚡ PREPARE-SE! {v.minutos} min!", v.resumo())
                 self.ultimo_minuto = v.minutos
 
     # ─── UPDATE ───────────────────────────────────────────────────────────────

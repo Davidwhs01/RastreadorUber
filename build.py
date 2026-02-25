@@ -128,10 +128,6 @@ def main():
         "--hidden-import=selenium.webdriver.common.by",
         "--hidden-import=PIL",
         "--hidden-import=PIL.Image",
-        "--hidden-import=pyttsx3",
-        "--hidden-import=pyttsx3.drivers",
-        "--hidden-import=pyttsx3.drivers.sapi5",
-        "--hidden-import=pythoncom",
     ]
 
     # ─── Collect customtkinter data ───────────────────────────────────────
@@ -139,7 +135,6 @@ def main():
     collect = [
         "--collect-all=customtkinter",
         "--collect-all=selenium",
-        "--collect-all=pyttsx3",
     ]
 
     # ─── PyInstaller command ──────────────────────────────────────────────

@@ -17,7 +17,6 @@ import os
 import re
 import sys
 import json
-# pyttsx3 é importado lazy dentro do _tts_worker() para não crashar o PyInstaller
 import tempfile
 import zipfile
 import shutil
@@ -260,38 +259,26 @@ def gerar_pagina_simulada(etapa: int) -> str:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Fila de TTS para evitar bugs do pyttsx3 rodando em threads avulsas
+import subprocess
+
 tts_queue = queue.Queue()
 
 def _tts_worker():
-    try:
-        import pythoncom
-        pythoncom.CoInitialize()
-    except Exception:
-        pass
-    try:
-        import pyttsx3
-        engine = pyttsx3.init()
-        engine.setProperty('rate', 180)
-    except Exception as e:
-        print("Erro init pyttsx3 (voz desativada):", e)
-        # Drena a fila silenciosamente para não travar
-        while True:
-            try:
-                tts_queue.get()
-                tts_queue.task_done()
-            except:
-                pass
-        return
-        
     while True:
         try:
             texto = tts_queue.get()
             if texto:
-                engine.say(texto)
-                engine.runAndWait()
+                # Usa PowerShell nativo para TTS (evita problemas de COM Threading do pyttsx3)
+                ps_script = f'''
+                Add-Type -AssemblyName System.speech
+                $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
+                $synth.Rate = 1 # Taxa de voz ligeiramente acelerada (0 a 10)
+                $synth.Speak("{texto}")
+                '''
+                subprocess.run(["powershell", "-WindowStyle", "Hidden", "-Command", ps_script], 
+                               creationflags=subprocess.CREATE_NO_WINDOW)
             tts_queue.task_done()
         except Exception as e:
-            print("Erro tts worker:", e)
             try:
                 tts_queue.task_done()
             except:
@@ -312,8 +299,7 @@ def tocar_alerta(urgente=False, entregue=False, minutos=None):
             texto = f"Uber a {minutos} minutos."
         
     if texto:
-        with tts_queue.mutex:
-            tts_queue.queue.clear()
+        # Coloca na fila para o worker do PowerShell processar na ordem correta
         tts_queue.put(texto)
 
 

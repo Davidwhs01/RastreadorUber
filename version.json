@@ -1,5 +1,5 @@
 {
-    "version": "3.2.7",
+    "version": "3.2.8",
     "github_repo": "Davidwhs01/RastreadorUber",
-    "changelog": "Versão 3.2.7: Ajuste visual do banner de atualização e botão Reiniciar app via um clique."
+    "changelog": "Versão 3.2.8: Substituído motor de voz Pyttsx3 falho pelo PowerShell Speech Nativo, garantindo estabilidade total nos alertas e um app mais leve."
 }

@@ -2,7 +2,7 @@
 ; Delta Silk Print
 
 #define MyAppName "UberTrack"
-#define MyAppVersion "3.2.8"
+#define MyAppVersion "3.3.0"
 #define MyAppPublisher "Delta Silk Print"
 #define MyAppExeName "UberTrack.exe"
 

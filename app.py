@@ -103,9 +103,11 @@ class DadosViagem:
     map_image: Optional[bytes] = None
     status: str = "aguardando"
     historico: list = field(default_factory=list)
+    nome_sessao: Optional[str] = None
 
     def resumo(self) -> str:
         p = []
+        if getattr(self, "nome_sessao", None): p.append(f"📦 {self.nome_sessao}")
         if self.modalidade: p.append(self.modalidade)
         if self.tipo_veiculo: p.append(self.tipo_veiculo)
         if self.placa:     p.append(self.placa)
@@ -286,17 +288,25 @@ def _tts_worker():
 
 threading.Thread(target=_tts_worker, daemon=True).start()
 
-def tocar_alerta(urgente=False, entregue=False, minutos=None):
+def tocar_alerta(urgente=False, entregue=False, minutos=None, viagem=None):
     texto = ""
+    uber_nome = "Uber"
+    if viagem and getattr(viagem, "nome_sessao", None):
+        uber_nome = f"Uber {viagem.nome_sessao}"
+
     if entregue:
-        texto = "A entrega foi concluída!"
+        texto = f"A entrega do {uber_nome} foi concluída!"
     elif urgente:
-        texto = "Atenção: O Uber está chegando!"
+        if viagem and viagem.modelo and viagem.placa:
+            cor = viagem.cor or ""
+            texto = f"O {uber_nome} está chegando! Desça para buscar. Placa {viagem.placa}, {viagem.modelo} {cor}."
+        else:
+            texto = f"Atenção: O {uber_nome} está chegando! Desça para buscar."
     elif minutos is not None:
         if minutos == 3:
-            texto = "Uber a três minutos."
+            texto = f"{uber_nome} a três minutos."
         else:
-            texto = f"Uber a {minutos} minutos."
+            texto = f"{uber_nome} a {minutos} minutos."
         
     if texto:
         # Coloca na fila para o worker do PowerShell processar na ordem correta
@@ -653,7 +663,18 @@ class RastreadorApp(ctk.CTk):
             text_color=C["text"], placeholder_text_color=C["text3"]
         )
         self.link_entry.pack(fill="x", padx=18, pady=(0, 10))
-        self.link_entry.bind("<Return>", lambda e: self._start())
+        self.link_entry.bind("<Return>", lambda e: self.nome_entry.focus_set())
+
+        # Nome Entry
+        self.nome_entry = ctk.CTkEntry(
+            self.input_card, height=40,
+            placeholder_text="Identificação ex: DTF (Opcional)",
+            font=ctk.CTkFont(size=13), corner_radius=10,
+            fg_color=C["card_inner"], border_color=C["card_border"],
+            text_color=C["text"], placeholder_text_color=C["text3"]
+        )
+        self.nome_entry.pack(fill="x", padx=18, pady=(0, 10))
+        self.nome_entry.bind("<Return>", lambda e: self._start())
 
         # Error
         self.err_label = ctk.CTkLabel(
@@ -1004,6 +1025,9 @@ class RastreadorApp(ctk.CTk):
             return
         self._err_hide()
         self.viagem = DadosViagem()
+        nome = self.nome_entry.get().strip()
+        if nome:
+            self.viagem.nome_sessao = nome
         self.ultimo_minuto = -1
         self.alerta_3_tocado = False
         self.alerta_1_tocado = False
@@ -1136,14 +1160,14 @@ class RastreadorApp(ctk.CTk):
 
         if v.status == "entregue":
             if getattr(self, "ultimo_status", None) != "entregue":
-                tocar_alerta(entregue=True)
+                tocar_alerta(entregue=True, viagem=v)
                 notificar("📦 Item Entregue!", v.resumo())
                 self.ultimo_status = "entregue"
         elif v.status == "chegando":
             if getattr(self, "ultimo_status", None) != "chegando":
                 if not getattr(self, "alerta_1_tocado", False):
                     self.alerta_1_tocado = True
-                    tocar_alerta(urgente=True)
+                    tocar_alerta(urgente=True, viagem=v)
                 notificar("🚨 UBER CHEGOU!", v.resumo())
                 self.ultimo_status = "chegando"
         elif v.status == "cancelado":
@@ -1156,11 +1180,11 @@ class RastreadorApp(ctk.CTk):
                 v.historico.append((datetime.now().strftime("%H:%M:%S"), v.minutos))
                 if v.minutos <= 1 and not getattr(self, "alerta_1_tocado", False):
                     self.alerta_1_tocado = True
-                    tocar_alerta(urgente=True)
+                    tocar_alerta(urgente=True, viagem=v)
                     notificar(f"⚡ DESCENDO! {v.minutos} min!", v.resumo())
                 elif v.minutos <= 3 and not getattr(self, "alerta_3_tocado", False):
                     self.alerta_3_tocado = True
-                    tocar_alerta(urgente=False, minutos=3)
+                    tocar_alerta(urgente=False, minutos=3, viagem=v)
                     notificar(f"⚡ PREPARE-SE! {v.minutos} min!", v.resumo())
                 self.ultimo_minuto = v.minutos
 

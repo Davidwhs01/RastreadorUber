@@ -1,5 +1,5 @@
 {
-    "version": "3.3.1",
+    "version": "4.0.0",
     "github_repo": "Davidwhs01/RastreadorUber",
-    "changelog": "Versão 3.3.1: (Hotfix) Corrigido o bug visual onde a tela ficava totalmente preta/em branco após clicar no botão Parar Rastreamento."
+    "changelog": "Versão 4.0.0: O NOVO UBERTRACK MULTI! Agora você pode rastrear múltiplos Ubers simultaneamente na mesma tela! Novos painéis em grade. A voz lerá a identificação correta de cada um (ex: 'Uber Ifood', 'Uber DTF', etc.) e os alarmes tocarão independentemente."
 }

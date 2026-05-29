@@ -374,19 +374,33 @@ class TrackingCard(ctk.CTkFrame):
         options.add_experimental_option("excludeSwitches", ["enable-logging"])
 
         driver = None
-        try:
+        consecutive_errors = 0
+        max_errors_before_reconnect = 3
+
+        def _init_driver():
+            nonlocal driver
+            if driver:
+                try:
+                    driver.quit()
+                except Exception:
+                    pass
+            log("Inicializando nova instância do WebDriver...")
             driver = webdriver.Chrome(options=options)
+            driver.set_page_load_timeout(25)
+            driver.set_script_timeout(10)
+            driver.get(link)
+            time.sleep(5)
+
+        try:
+            _init_driver()
+            notificar("UberTrack", f"Monitoramento ativo para {self.viagem.nome_sessao or 'o link'} ✔")
         except Exception as e:
-            log(f"Erro navegador: {e}")
-            self.after(0, lambda: notificar("Erro", f"Navegador não encontrado: {e}"))
+            log(f"Erro inicial ao abrir navegador: {e}")
+            self.after(0, lambda: notificar("Erro", f"Navegador não pôde ser iniciado: {e}"))
             self.after(0, self._stop)
             return
 
         try:
-            driver.get(link)
-            time.sleep(5)
-            notificar("UberTrack", f"Monitoramento ativo para {self.viagem.nome_sessao or 'o link'} ✔")
-
             while not self.stop_event.is_set():
                 try:
                     script_remover_modais = """
@@ -397,8 +411,25 @@ class TrackingCard(ctk.CTkFrame):
                     
                     texto = driver.find_element(By.TAG_NAME, "body").text
                     png = driver.get_screenshot_as_png()
-                except Exception:
-                    time.sleep(3)
+                    
+                    # Leitura com sucesso, resetamos o contador de erros consecutivos
+                    consecutive_errors = 0
+                except Exception as e:
+                    consecutive_errors += 1
+                    log(f"Falha de leitura no monitoramento ({consecutive_errors}/{max_errors_before_reconnect}): {e}")
+                    
+                    if consecutive_errors >= max_errors_before_reconnect:
+                        log("Muitas falhas consecutivas detectadas. O PC pode ter suspendido ou perdido a conexão. Tentando reiniciar o navegador...")
+                        self.after(0, lambda: self.st_sub.configure(text="Tentando restabelecer conexão..."))
+                        try:
+                            _init_driver()
+                            consecutive_errors = 0
+                            log("Navegador reiniciado e monitoramento restabelecido com sucesso.")
+                        except Exception as re_err:
+                            log(f"Falha ao tentar reiniciar o navegador: {re_err}. Aguardando nova tentativa...")
+                            time.sleep(5)
+                    else:
+                        time.sleep(3)
                     continue
                 
                 self._processar(texto, png)

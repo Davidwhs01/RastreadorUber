@@ -597,28 +597,44 @@ def rodar_real(link: str, on_update=None):
     options.add_argument("--log-level=3")
     options.add_experimental_option("excludeSwitches", ["enable-logging"])
 
-    try:
+    driver = None
+    consecutive_errors = 0
+    max_errors_before_reconnect = 3
+
+    def _init_driver():
+        nonlocal driver
+        if driver:
+            try:
+                driver.quit()
+            except Exception:
+                pass
+        logger.info("Inicializando nova instância do WebDriver...")
         driver = webdriver.Chrome(options=options)
+        driver.set_page_load_timeout(25)
+        driver.set_script_timeout(10)
+        driver.get(link)
+        time.sleep(5)
+
+    def encerrar(sig, frame):
+        print(f"\n{Fore.YELLOW}[!] Encerrado pelo usuário.{Style.RESET_ALL}")
+        try:
+            if driver: driver.quit()
+        except Exception:
+            pass
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, encerrar)
+
+    try:
+        _init_driver()
+        notificar("Rastreador Uber Iniciado", "Monitoramento ativo ✔")
+        logger.ok("Monitoramento iniciado! Pressione Ctrl+C para encerrar.\n")
     except Exception as e:
         logger.urgente(f"Falha ao abrir navegador: {e}")
         print(f"\n{Fore.YELLOW}Dicas:{Style.RESET_ALL}")
         print("  1. Verifique CONFIG['CAMINHO_NAVEGADOR']")
         print("  2. Instale o ChromeDriver compatível com seu browser")
         sys.exit(1)
-
-    def encerrar(sig, frame):
-        print(f"\n{Fore.YELLOW}[!] Encerrado pelo usuário.{Style.RESET_ALL}")
-        try: driver.quit()
-        except Exception: pass
-        sys.exit(0)
-
-    signal.signal(signal.SIGINT, encerrar)
-
-    driver.get(link)
-    logger.info("Aguardando carregamento da página (5s)...")
-    time.sleep(5)
-    notificar("Rastreador Uber Iniciado", "Monitoramento ativo ✔")
-    logger.ok("Monitoramento iniciado! Pressione Ctrl+C para encerrar.\n")
 
     viagem          = DadosViagem()
     painel_mostrado = False
@@ -627,16 +643,29 @@ def rodar_real(link: str, on_update=None):
     while True:
         try:
             texto_bruto = driver.find_element(By.TAG_NAME, "body").text
+            consecutive_errors = 0
         except Exception as e:
-            logger.alerta(f"Erro de leitura: {e}. Tentando em 3s...")
-            time.sleep(3)
+            consecutive_errors += 1
+            logger.alerta(f"Erro de leitura ({consecutive_errors}/{max_errors_before_reconnect}): {e}")
+            
+            if consecutive_errors >= max_errors_before_reconnect:
+                logger.urgente("Muitas falhas consecutivas. O PC pode ter suspendido ou perdido a rede. Tentando reiniciar o navegador...")
+                try:
+                    _init_driver()
+                    consecutive_errors = 0
+                    logger.ok("Navegador reiniciado com sucesso!")
+                except Exception as re_err:
+                    logger.urgente(f"Erro ao tentar reiniciar: {re_err}. Aguardando nova tentativa...")
+                    time.sleep(5)
+            else:
+                time.sleep(3)
             continue
 
-        painel_mostrado, ultimo_minuto, encerrar = processar_ciclo(
+        painel_mostrado, ultimo_minuto, encerrar_loop = processar_ciclo(
             viagem, texto_bruto, painel_mostrado, ultimo_minuto, on_update=on_update
         )
 
-        if encerrar:
+        if encerrar_loop:
             try: driver.quit()
             except Exception: pass
             break

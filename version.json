@@ -1,5 +1,5 @@
 {
-    "version": "4.0.0",
+    "version": "4.0.1",
     "github_repo": "Davidwhs01/RastreadorUber",
-    "changelog": "Versão 4.0.0: O NOVO UBERTRACK MULTI! Agora você pode rastrear múltiplos Ubers simultaneamente na mesma tela! Novos painéis em grade. A voz lerá a identificação correta de cada um (ex: 'Uber Ifood', 'Uber DTF', etc.) e os alarmes tocarão independentemente."
+    "changelog": "Versão 4.0.1: Correção de resiliência e auto-recuperação do monitoramento. Agora o rastreador detecta quedas de conexão ou suspensão/bloqueio do computador e reinicia o navegador de forma transparente para continuar atualizando."
 }

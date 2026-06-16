@@ -121,7 +121,7 @@ class TrackingCard(ctk.CTkFrame):
         self.v_modelo  = self._cell(data, "MODELO",     "---",              3, 0, size=13)
         self.v_cor     = self._cell(data, "COR",        "---",              3, 1, size=13)
         self.v_tipo    = self._cell(data, "VEÍCULO",    "---",              4, 0, size=13)
-        self.v_modal   = self._cell(data, "ENTREGA",    "---",              4, 1, size=13)
+        self.v_modal   = self._cell(data, "MODALIDADE", "---",              4, 1, size=13)
 
         sep2 = ctk.CTkFrame(data, height=2, fg_color=C["card_border"])
         sep2.grid(row=5, column=0, columnspan=2, sticky="ew", pady=10)

@@ -234,11 +234,11 @@ def extrair_dados(texto_bruto: str) -> DadosViagem:
         dados.modalidade = "Viagem"
 
     motos = ["HONDA CG", "YAMAHA", "TITAN", "BROS", "BIZ", "TWISTER", "FAZER", "NMAX", "PCX", "XRE"]
-    if any(m in texto for m in motos) or "MOTO" in texto:
+    if any(m in texto for m in motos) or re.search(r'\bMOTO\b', texto) or "MOTOCICLETA" in texto:
         dados.tipo_veiculo = "Moto"
     elif "BICICLETA" in texto or "BIKE" in texto:
         dados.tipo_veiculo = "Bicicleta"
-    elif any(k in texto for k in ["UBER FLASH", "UBERX", "UBER BLACK"]):
+    elif any(k in texto for k in ["UBER FLASH", "UBERX", "UBER BLACK", "CARRO"]):
         dados.tipo_veiculo = "Carro"
 
     # 1. PLACA — Mercosul (ABC1D23) ou Antigo (ABC1234)
@@ -307,21 +307,37 @@ def extrair_dados(texto_bruto: str) -> DadosViagem:
             dados.modelo = modelo.title()
             break
 
+    # Se detectou modelo de carro, o tipo_veiculo padrão é Carro (a menos que seja bicicleta/bike)
+    if dados.modelo and dados.tipo_veiculo != "Bicicleta":
+        dados.tipo_veiculo = "Carro"
+
     # 7. NOME DO MOTORISTA
     palavras_ignorar = {
         "MIN", "PM", "AM", "UBER", "VIAGEM", "CHEGADA", "ITEM", "PARA",
         "COM", "NAO", "SIM", "RUA", "AV", "AVE", "STATUS", "BRANCO",
         "PRETO", "PRATA", "CINZA", "DEBUG", "ENTREGUE", "ENTREGA",
+        "MOTO", "CARRO", "BICICLETA", "MODA", "LOCAL", "DE", "PARTIDA",
+        "DESTINO", "INFORMAÇÕES", "DADOS", "PEDIDO", "DELIVERY",
+        "HONDA", "YAMAHA", "FIAT", "TOYOTA", "HYUNDAI", "CHEVROLET",
+        "CG", "SAPOPEMBA", "TERMOS", "MAPA", "MAPAS", "GOOGLE", "CARTOGRÁFICOS",
+        "CARTOGRAFICOS", "INFORMAR", "ERRO", "ERROS", "CONTRIBUIR", "TECLADO",
+        "ATALHOS", "USO", "PRIVACIDADE", "POLÍTICA", "SAIBA", "MAIS", "AJUDA"
     }
     for linha in texto_bruto.split("\n"):
         linha = linha.strip()
-        if (3 <= len(linha) <= 20
-                and linha.isupper()
-                and linha not in palavras_ignorar
+        linha_upper = linha.upper()
+        if (2 <= len(linha) <= 25
+                and linha_upper not in palavras_ignorar
                 and not re.search(r'\d', linha)
-                and not any(k in linha for k in ["RUA", "AV.", "MIN", "PM", "AM"])):
-            dados.motorista = linha.title()
-            break
+                and not any(k in linha_upper for k in ["RUA", "AV.", "MIN", "PM", "AM", "HTTP",
+                                                      "UBER", "VIAGEM", "OBRIGADO", "ENTREGA",
+                                                      "FOI ENTREGUE", "A CAMINHO", "CHEGANDO",
+                                                      "INFORMAÇ", "RASTREAMENTO", "TERMOS",
+                                                      "DADOS CARTOGR", "INFORMAR ERRO", "SAIBA MAIS"])):
+            # Aceita: nomes totalmente em maiúsculas OU capitalizados (ex: "Pedro", "BRENO")
+            if (linha.isupper() or (linha[0].isupper() and linha.isalpha())):
+                dados.motorista = linha.title()
+                break
 
     return dados
 

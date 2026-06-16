@@ -1,5 +1,5 @@
 {
-    "version": "4.0.2",
+    "version": "4.0.3",
     "github_repo": "Davidwhs01/RastreadorUber",
-    "changelog": "Versão 4.0.2: Correção de bugs de classificação (nome do motorista retornando 'Termos', tipo do veículo 'Moto' para carros) e melhoria visual mudando rótulo redundante de 'Entrega' para 'Modalidade'."
+    "changelog": "Versão 4.0.3: Layout dinâmico responsivo no modo tela cheia (Fullscreen/larga) que organiza os múltiplos cards de Uber em colunas automáticas."
 }

@@ -452,7 +452,10 @@ class TrackingCard(ctk.CTkFrame):
 
     def _stop(self):
         self.stop_event.set()
-        self.destroy()
+        if hasattr(self, 'app_master') and self.app_master:
+            self.app_master.remover_card(self)
+        else:
+            self.destroy()
 
 
 class RastreadorApp(ctk.CTk):
@@ -470,7 +473,10 @@ class RastreadorApp(ctk.CTk):
         self._icon_path = next((p for p in icon_candidates if p.exists()), BASE_DIR / "icon.ico")
         self.after(200, self._apply_icon)
 
+        self.cards = []
         self._build_ui()
+        
+        self.bind("<Configure>", self._on_resize)
         threading.Thread(target=self._check_update_bg, daemon=True).start()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -600,6 +606,10 @@ class RastreadorApp(ctk.CTk):
         )
         self.debug_btn.pack(side="right")
 
+        # Container para os cards de rastreamento com Grid responsivo
+        self.cards_container = ctk.CTkFrame(self.main, fg_color="transparent")
+        self.cards_container.pack(fill="both", expand=True, pady=(24, 0))
+
         footer = ctk.CTkFrame(self, fg_color=C["bg2"], height=36, corner_radius=0)
         footer.pack(fill="x", side="bottom")
         footer.pack_propagate(False)
@@ -609,6 +619,40 @@ class RastreadorApp(ctk.CTk):
             text=f"Criado por Delta Silk Print  ·  v{APP_VERSION} MULTI",
             font=ctk.CTkFont(size=10), text_color=C["text3"]
         ).pack(expand=True)
+
+    def _on_resize(self, event):
+        if event.widget == self:
+            width = event.width
+            cols = max(1, width // 480)
+            if getattr(self, '_num_cols', 0) != cols:
+                self._num_cols = cols
+                self.reorganizar_cards()
+
+    def reorganizar_cards(self):
+        for child in self.cards_container.winfo_children():
+            child.grid_forget()
+            
+        if not self.cards:
+            return
+            
+        width = self.winfo_width()
+        num_cols = max(1, width // 480)
+        
+        for i in range(num_cols):
+            self.cards_container.grid_columnconfigure(i, weight=1, uniform="col")
+        for i in range(num_cols, 10):
+            self.cards_container.grid_columnconfigure(i, weight=0, uniform="")
+
+        for index, card in enumerate(self.cards):
+            row = index // num_cols
+            col = index % num_cols
+            card.grid(row=row, column=col, padx=12, pady=12, sticky="nsew")
+
+    def remover_card(self, card):
+        if card in self.cards:
+            self.cards.remove(card)
+        card.destroy()
+        self.reorganizar_cards()
 
     def _start(self):
         txt = self.link_entry.get().strip()
@@ -622,9 +666,11 @@ class RastreadorApp(ctk.CTk):
         self._err_hide()
         nome = self.nome_entry.get().strip()
         
-        # Cria e injeta o novo TrackingCard logo abaixo do form
-        card = TrackingCard(self.main, link=link, nome_sessao=nome, is_debug=(txt.upper() == "DEBUG"))
-        card.pack(fill="x", pady=(24, 0), before=None) # Vai empilhando embaixo
+        # Cria e injeta o novo TrackingCard dentro do container de colunas
+        card = TrackingCard(self.cards_container, link=link, nome_sessao=nome, is_debug=(txt.upper() == "DEBUG"))
+        card.app_master = self
+        self.cards.append(card)
+        self.reorganizar_cards()
         
         # Tenta rolar para baixo pra mostrar o card (pequeno delay pra render)
         self.after(200, lambda: self.main._parent_canvas.yview_moveto(1.0))
@@ -681,10 +727,9 @@ class RastreadorApp(ctk.CTk):
         subprocess.Popen([sys.executable] + sys.argv[1:])
 
     def _on_close(self):
-        # Avisa todos os cards filhos para pararem as threads
-        for child in self.main.winfo_children():
-            if isinstance(child, TrackingCard):
-                child.stop_event.set()
+        # Avisa todos os cards para pararem as threads
+        for card in self.cards:
+            card.stop_event.set()
         self.destroy()
 
 if __name__ == "__main__":

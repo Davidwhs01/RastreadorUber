@@ -1,5 +1,5 @@
 {
-    "version": "4.0.3",
+    "version": "4.0.4",
     "github_repo": "Davidwhs01/RastreadorUber",
-    "changelog": "Versão 4.0.3: Layout dinâmico responsivo no modo tela cheia (Fullscreen/larga) que organiza os múltiplos cards de Uber em colunas automáticas."
+    "changelog": "Versão 4.0.4: Ajuste no grid responsivo para preencher a tela inteira proporcionalmente quando há menos ubers que o limite máximo de colunas da tela."
 }

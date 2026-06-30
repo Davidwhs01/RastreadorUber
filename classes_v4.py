@@ -623,7 +623,8 @@ class RastreadorApp(ctk.CTk):
     def _on_resize(self, event):
         if event.widget == self:
             width = event.width
-            cols = max(1, width // 480)
+            max_cols = max(1, width // 480)
+            cols = min(max_cols, len(self.cards)) if self.cards else 1
             if getattr(self, '_num_cols', 0) != cols:
                 self._num_cols = cols
                 self.reorganizar_cards()
@@ -636,7 +637,8 @@ class RastreadorApp(ctk.CTk):
             return
             
         width = self.winfo_width()
-        num_cols = max(1, width // 480)
+        max_cols = max(1, width // 480)
+        num_cols = min(max_cols, len(self.cards))
         
         for i in range(num_cols):
             self.cards_container.grid_columnconfigure(i, weight=1, uniform="col")

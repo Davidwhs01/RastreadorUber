@@ -227,6 +227,11 @@ def extrair_dados(texto_bruto: str) -> DadosViagem:
         elif linha.upper().startswith("PARA ") and not dados.destino:
             dados.destino = linha[5:].strip()
 
+    # Destino Lalamove (Ex: "Heading to Rua Galeão 439 in 1 min" ou "A caminho de ...")
+    m_lala_dest = re.search(r'(?:HEADING TO|A CAMINHO DE)\s+(.*?)\s+(?:IN|EM)\s+\d+', texto)
+    if m_lala_dest and not dados.destino:
+        dados.destino = m_lala_dest.group(1).strip()
+
     # MODALIDADE E TIPO VEÍCULO
     if any(k in texto for k in ["ITEM", "ENTREGA", "PEDIDO", "DELIVERY", "PACOTE"]):
         dados.modalidade = "Entrega"
@@ -238,18 +243,31 @@ def extrair_dados(texto_bruto: str) -> DadosViagem:
         dados.tipo_veiculo = "Moto"
     elif "BICICLETA" in texto or "BIKE" in texto:
         dados.tipo_veiculo = "Bicicleta"
-    elif any(k in texto for k in ["UBER FLASH", "UBERX", "UBER BLACK", "CARRO"]):
+    elif any(k in texto for k in ["UBER FLASH", "UBERX", "UBER BLACK", "CARRO", "FIORINO", "VAN"]):
         dados.tipo_veiculo = "Carro"
 
-    # 1. PLACA — Mercosul (ABC1D23) ou Antigo (ABC1234)
-    for padrao in [
-        r'\b([A-Z]{3}\d[A-Z]\d{2})\b',
-        r'\b([A-Z]{3}[-]?\d{4})\b',
-    ]:
-        m = re.search(padrao, texto)
-        if m:
-            dados.placa = m.group(1).replace("-", "")
-            break
+    # 1. PLACA — Lalamove, Mercosul (ABC1D23) ou Antigo (ABC1234)
+    # Lalamove format: EJ***** - FIORINO
+    m_lala = re.search(r'\b([A-Z0-9*]{5,8})\s*-\s*([A-Z0-9 ]+)\b', texto)
+    if m_lala and "*" in m_lala.group(1):
+        dados.placa = m_lala.group(1)
+        dados.modelo = m_lala.group(2).strip().title()
+        # Motorista Lalamove geralmente está na linha de cima da placa
+        linhas = texto_bruto.split('\n')
+        for i, linha in enumerate(linhas):
+            if re.search(r'\b[A-Z0-9*]{5,8}\s*-\s*[A-Z0-9 ]+\b', linha.upper()):
+                if i > 0 and not dados.motorista:
+                    dados.motorista = linhas[i-1].strip().title()
+                break
+    else:
+        for padrao in [
+            r'\b([A-Z]{3}\d[A-Z]\d{2})\b',
+            r'\b([A-Z]{3}[-]?\d{4})\b',
+        ]:
+            m = re.search(padrao, texto)
+            if m:
+                dados.placa = m.group(1).replace("-", "")
+                break
 
     # 2. HORÁRIO DE CHEGADA
     m = re.search(r'\b(\d{1,2}:\d{2})\s*(PM|AM)?\b', texto)
@@ -266,11 +284,12 @@ def extrair_dados(texto_bruto: str) -> DadosViagem:
         "ITEM FOI ENTREGUE", "FOI ENTREGUE", "ENTREGA CONCLUIDA",
         "ENTREGA CONCLUÍDA", "PEDIDO ENTREGUE", "DELIVERY COMPLETE",
         "DELIVERED", "ENTREGUE COM SUCESSO", "SUA ENTREGA FOI CONCLUIDA",
-        "SUA ENTREGA FOI CONCLUÍDA",
+        "SUA ENTREGA FOI CONCLUÍDA", "ORDER COMPLETED"
     )
     frases_chegando = (
         "CHEGANDO", "ARRIVING", "CHEGOU", "ARRIVED",
         "MOTORISTA CHEGOU", "DRIVER HAS ARRIVED", "AQUI",
+        "HEADING TO", "A CAMINHO"
     )
 
     if any(k in texto for k in frases_entregue):
@@ -336,7 +355,8 @@ def extrair_dados(texto_bruto: str) -> DadosViagem:
                                                       "DADOS CARTOGR", "INFORMAR ERRO", "SAIBA MAIS"])):
             # Aceita: nomes totalmente em maiúsculas OU capitalizados (ex: "Pedro", "BRENO")
             if (linha.isupper() or (linha[0].isupper() and linha.isalpha())):
-                dados.motorista = linha.title()
+                if not dados.motorista:
+                    dados.motorista = linha.title()
                 break
 
     return dados
@@ -701,14 +721,17 @@ def rodar_real(link: str, on_update=None):
 # ─── EXTRAÇÃO DE LINK ─────────────────────────────────────────────────────────
 def extrair_link(texto: str) -> Optional[str]:
     m = re.search(r'(https?://(?:trip|m)\.uber\.com/[^\s]+)', texto)
-    return m.group(1) if m else None
+    if m: return m.group(1)
+    m2 = re.search(r'(https?://share\.lalamove\.com/[^\s]+)', texto)
+    if m2: return m2.group(1)
+    return None
 
 
 # ─── ENTRADA PRINCIPAL ────────────────────────────────────────────────────────
 def iniciar():
     exibir_banner()
     entrada = input(
-        f"{Fore.WHITE}📩 Cole o link ou mensagem da Uber"
+        f"{Fore.WHITE}📩 Cole o link ou mensagem de rastreamento"
         f" {Fore.YELLOW}(ou digite DEBUG para simular){Fore.WHITE}:\n"
         f"{Fore.CYAN}> {Style.RESET_ALL}"
     ).strip()
@@ -719,8 +742,8 @@ def iniciar():
 
     link = extrair_link(entrada)
     if not link:
-        print(f"{Fore.RED}❌ Nenhum link da Uber encontrado.{Style.RESET_ALL}")
-        print("   Esperado: https://trip.uber.com/...  ou  https://m.uber.com/...")
+        print(f"{Fore.RED}❌ Nenhum link de rastreamento encontrado.{Style.RESET_ALL}")
+        print("   Esperado: link da Uber ou Lalamove")
         print(f"   {Fore.YELLOW}Dica: Digite DEBUG para testar sem link.{Style.RESET_ALL}")
         sys.exit(1)
 

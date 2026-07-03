@@ -216,7 +216,7 @@ class TrackingCard(ctk.CTkFrame):
             "entregue":   "A entrega foi concluída com sucesso! ✔",
             "cancelado":  "A viagem foi cancelada pelo motorista",
         }
-        self.st_sub.configure(text=subs.get(v.status, "Monitorando o link da Uber..."))
+        self.st_sub.configure(text=subs.get(v.status, "Monitorando o link..."))
 
         if v.minutos is not None:
             self.min_num.configure(text=str(v.minutos))
@@ -659,11 +659,11 @@ class RastreadorApp(ctk.CTk):
     def _start(self):
         txt = self.link_entry.get().strip()
         if not txt:
-            self._err("Cole um link da Uber ou clique em DEBUG")
+            self._err("Cole um link de rastreamento ou clique em DEBUG")
             return
         link = extrair_link(txt)
         if not link and txt.upper() != "DEBUG":
-            self._err("Link inválido. Esperado: https://trip.uber.com/...")
+            self._err("Link inválido. Esperado: link da Uber ou Lalamove")
             return
         self._err_hide()
         nome = self.nome_entry.get().strip()

@@ -1,5 +1,5 @@
 {
-    "version": "4.0.4",
+    "version": "4.0.5",
     "github_repo": "Davidwhs01/RastreadorUber",
-    "changelog": "Versão 4.0.4: Ajuste no grid responsivo para preencher a tela inteira proporcionalmente quando há menos ubers que o limite máximo de colunas da tela."
+    "changelog": "Versão 4.0.5: Adicionado suporte completo para monitoramento e rastreamento de entregas da Lalamove."
 }

@@ -620,18 +620,24 @@ def rodar_real(link: str, on_update=None):
     logger.info(f"Link: {link}")
     logger.info("Iniciando navegador...")
 
-    options = Options()
-    options.binary_location = CONFIG["CAMINHO_NAVEGADOR"]
-    options.add_experimental_option("detach", True)
-    options.add_argument("--disable-notifications")
-    options.add_argument("--disable-popup-blocking")
-    options.add_argument("--headless=new")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-extensions")
-    options.add_argument("--blink-settings=imagesEnabled=false")
-    options.add_argument("--log-level=3")
-    options.add_experimental_option("excludeSwitches", ["enable-logging"])
+    def _try_create_driver(binary_loc=None):
+        opt = Options()
+        if binary_loc:
+            opt.binary_location = binary_loc
+        opt.add_experimental_option("detach", True)
+        opt.add_argument("--disable-notifications")
+        opt.add_argument("--disable-popup-blocking")
+        opt.add_argument("--headless=new")
+        opt.add_argument("--disable-gpu")
+        opt.add_argument("--no-sandbox")
+        opt.add_argument("--disable-extensions")
+        opt.add_argument("--blink-settings=imagesEnabled=false")
+        opt.add_argument("--log-level=3")
+        opt.add_experimental_option("excludeSwitches", ["enable-logging"])
+        drv = webdriver.Chrome(options=opt)
+        drv.set_page_load_timeout(25)
+        drv.set_script_timeout(10)
+        return drv
 
     driver = None
     consecutive_errors = 0
@@ -645,9 +651,17 @@ def rodar_real(link: str, on_update=None):
             except Exception:
                 pass
         logger.info("Inicializando nova instância do WebDriver...")
-        driver = webdriver.Chrome(options=options)
-        driver.set_page_load_timeout(25)
-        driver.set_script_timeout(10)
+        
+        try:
+            driver = _try_create_driver()
+        except Exception as e1:
+            logger.info(f"Falha ao usar Chrome padrão: {e1}")
+            try:
+                logger.info(f"Tentando fallback com CONFIG: {CONFIG['CAMINHO_NAVEGADOR']}")
+                driver = _try_create_driver(CONFIG["CAMINHO_NAVEGADOR"])
+            except Exception as e2:
+                raise Exception(f"{e1}")
+
         driver.get(link)
         time.sleep(5)
 

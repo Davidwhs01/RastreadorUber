@@ -1,5 +1,5 @@
 {
-    "version": "4.0.5",
+    "version": "4.0.6",
     "github_repo": "Davidwhs01/RastreadorUber",
-    "changelog": "Versão 4.0.5: Adicionado suporte completo para monitoramento e rastreamento de entregas da Lalamove."
+    "changelog": "Versão 4.0.6: Hotfix - Corrigido problema ao inicializar o navegador ('session not created') adicionando suporte adaptativo para Chrome e Brave."
 }

@@ -358,20 +358,20 @@ class TrackingCard(ctk.CTkFrame):
             return
 
         log(f"Rastreamento: {link}")
-        options = Options()
-        for bp in [
-            r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
-            r"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe",
-        ]:
-            if os.path.exists(bp):
-                options.binary_location = bp
-                break
-        options.add_argument("--headless=new")
-        options.add_argument("--window-size=400,750")
-        options.add_argument("--disable-notifications")
-        options.add_argument("--disable-popup-blocking")
-        options.add_argument("--log-level=3")
-        options.add_experimental_option("excludeSwitches", ["enable-logging"])
+        def _try_create_driver(binary_loc=None):
+            opt = Options()
+            if binary_loc:
+                opt.binary_location = binary_loc
+            opt.add_argument("--headless=new")
+            opt.add_argument("--window-size=400,750")
+            opt.add_argument("--disable-notifications")
+            opt.add_argument("--disable-popup-blocking")
+            opt.add_argument("--log-level=3")
+            opt.add_experimental_option("excludeSwitches", ["enable-logging"])
+            drv = webdriver.Chrome(options=opt)
+            drv.set_page_load_timeout(25)
+            drv.set_script_timeout(10)
+            return drv
 
         driver = None
         consecutive_errors = 0
@@ -385,9 +385,30 @@ class TrackingCard(ctk.CTkFrame):
                 except Exception:
                     pass
             log("Inicializando nova instância do WebDriver...")
-            driver = webdriver.Chrome(options=options)
-            driver.set_page_load_timeout(25)
-            driver.set_script_timeout(10)
+            
+            # Tentar Chrome Padrão primeiro
+            try:
+                driver = _try_create_driver()
+            except Exception as e1:
+                log(f"Falha com Chrome padrão: {e1}")
+                # Fallback para Brave
+                brave_paths = [
+                    r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
+                    r"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe"
+                ]
+                success = False
+                for bp in brave_paths:
+                    if os.path.exists(bp):
+                        try:
+                            log(f"Tentando fallback com Brave: {bp}")
+                            driver = _try_create_driver(bp)
+                            success = True
+                            break
+                        except Exception as e2:
+                            log(f"Falha com Brave {bp}: {e2}")
+                if not success:
+                    raise Exception(f"{e1}")
+
             driver.get(link)
             time.sleep(5)
 

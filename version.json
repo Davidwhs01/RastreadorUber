@@ -1,5 +1,5 @@
 {
-    "version": "4.0.6",
+    "version": "4.0.7",
     "github_repo": "Davidwhs01/RastreadorUber",
-    "changelog": "Versão 4.0.6: Hotfix - Corrigido problema ao inicializar o navegador ('session not created') adicionando suporte adaptativo para Chrome e Brave."
+    "changelog": "Versão 4.0.7: Correção de falso-positivo de status 'Chegando' para entregas em rota."
 }

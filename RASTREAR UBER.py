@@ -288,8 +288,7 @@ def extrair_dados(texto_bruto: str) -> DadosViagem:
     )
     frases_chegando = (
         "CHEGANDO", "ARRIVING", "CHEGOU", "ARRIVED",
-        "MOTORISTA CHEGOU", "DRIVER HAS ARRIVED", "AQUI",
-        "HEADING TO", "A CAMINHO"
+        "MOTORISTA CHEGOU", "DRIVER HAS ARRIVED", "AQUI"
     )
 
     if any(k in texto for k in frases_entregue):

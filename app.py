@@ -189,8 +189,7 @@ def extrair_dados(texto_bruto: str) -> DadosViagem:
     elif any(k in texto for k in ("CANCELAD", "CANCELED")):
         dados.status = "cancelado"
     elif any(k in texto for k in ("CHEGANDO", "ARRIVING", "CHEGOU", "ARRIVED",
-                                    "MOTORISTA CHEGOU", "DRIVER HAS ARRIVED", "AQUI",
-                                    "HEADING TO", "A CAMINHO")):
+                                    "MOTORISTA CHEGOU", "DRIVER HAS ARRIVED", "AQUI")):
         if dados.minutos is not None and dados.minutos > 3:
             dados.status = "em_rota"
         else:
